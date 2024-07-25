@@ -27,54 +27,35 @@ import SwiftUI
 
 /// A view that animates binding text. Passing the effect type as a generic.
 public struct AnimateText<E: ATTextAnimateEffect>: View {
-    
-    /// Binding the text to be expressed.
-    @Binding private var text: String
-    
-    /// The type used to split text.
+
+    @Binding private var texts: [String]
+    @Binding private var currentIndex: Int
+
     var type: ATUnitType = .letters
-    
-    /// Custom user info for the effect.
     var userInfo: Any? = nil
-    
-    /// The height of the Text view.
+
     @State private var height: CGFloat = 0
-    
-    /// Split text into individual elements.
     @State private var elements: Array<String> = []
-    
-    /// A value used for animation processing. A value between 0 and 1.
     @State private var value: Double = 0
-    
-    /// Used to re-create the view.
     @State private var toggle: Bool = false
-    
-    /// The first text is exposed as the default text.
     @State private var isChanged: Bool = false
-    
-    /// The size of the Text view.
     @State private var size: CGSize = .zero
-    
-    /// initialize `AnimateText`
-    ///
-    /// - Parameters:
-    ///   - text: Bind the text you want to express.
-    ///   - type: The type used to split text. `ATUnitType`
-    ///   - userInfo: Custom user info for the effect.
-    ///
-    public init(_ text: Binding<String>, type: ATUnitType = .letters, userInfo: Any? = nil) {
-        _text = text
+    @State private var isAnimationComplete: Bool = false
+
+    public init(_ texts: Binding<[String]>, currentIndex: Binding<Int>, type: ATUnitType = .letters, userInfo: Any? = nil) {
+        _texts = texts
+        _currentIndex = currentIndex
         self.type = type
         self.userInfo = userInfo
     }
-    
+
     public var body: some View {
         ZStack(alignment: .leading) {
             if !isChanged {
-                Text(text)
+                Text(texts[currentIndex])
                     .takeSize($size)
-            .multilineTextAlignment(.center)
-            }else {
+                    .multilineTextAlignment(.center)
+            } else {
                 GeometryReader { geometry in
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(splitElements(containerWidth: geometry.size.width), id: \.self) { lineElements in
@@ -101,28 +82,45 @@ public struct AnimateText<E: ATTextAnimateEffect>: View {
                         }
                     }
                     .onAppear {
-                        height = CGFloat(splitElements(containerWidth: geometry.size.width).count) * 40 // here you can customize the height to align a text
+                        height = CGFloat(splitElements(containerWidth: geometry.size.width).count) * 20
                     }
                     .onChange(of: geometry.size.width) { newValue in
-                        height = CGFloat(splitElements(containerWidth: geometry.size.width).count) * 40 // here you can customize the height to align a text
+                        height = CGFloat(splitElements(containerWidth: geometry.size.width).count) * 20
                     }
                 }
                 .frame(height: height)
             }
         }
-        .onChange(of: text) { _ in
-            withAnimation {
-                value = 0
-                getText(text)
-                toggle.toggle()
-            }
-            self.isChanged = true
-            DispatchQueue.main.async {
+        .onChange(of: currentIndex) { _ in
+            animateCurrentText()
+        }
+        .onAppear {
+            animateCurrentText()
+        }
+    }
+
+    private func animateCurrentText() {
+        withAnimation {
+            value = 0
+            getText(texts[currentIndex])
+            toggle.toggle()
+        }
+        self.isChanged = true
+        isAnimationComplete = false
+
+        let animationDuration = Double(texts[currentIndex].count) * 0.05 + 0.5 // Add a small buffer
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.linear(duration: animationDuration)) {
                 value = 1
             }
         }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) {
+            isAnimationComplete = true
+        }
     }
-    
+
     private func getText(_ text: String) {
         switch type {
         case .letters:
@@ -137,7 +135,7 @@ public struct AnimateText<E: ATTextAnimateEffect>: View {
             self.elements = elements
         }
     }
-    
+
     func splitElements(containerWidth: CGFloat) -> [[String]] {
         var lines: [[String]] = [[]]
         var currentLineIndex = 0
